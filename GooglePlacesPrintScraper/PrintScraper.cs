@@ -40,7 +40,14 @@ namespace GooglePlacesPrintScraper
                     using (var client = new HttpClient())
                     {
                         var response = client.GetStringAsync(string.Format("https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={0},{1}&radius=5000&keyword={2}&key={3}", locationTobeSearched.latitude, locationTobeSearched.longitude, keywords, googlePlacesApiKey)).Result;
-                        WriteResponse(response);
+                        JavaScriptSerializer json = new JavaScriptSerializer();
+                        var res = json.Deserialize<dynamic>(response);
+                        if (res["status"] == "OK")
+                            foreach (var match in res["results"])
+                            {
+                                var placeResponse = client.GetStringAsync(string.Format("https://maps.googleapis.com/maps/api/place/details/json?placeid={0}&key={1}", match["place_id"], googlePlacesApiKey)).Result;
+                                WriteResponse(placeResponse);
+                            }
                     }
                 }
                 catch (Exception e)
