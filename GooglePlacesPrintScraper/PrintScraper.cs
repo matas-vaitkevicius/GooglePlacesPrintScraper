@@ -12,6 +12,7 @@ namespace GooglePlacesPrintScraper
 {
     public class PrintScraper
     {
+        public static string Filename = "../../../data/us_postal_codes.csv";
         static void Main(string[] args)
         {
             CallGooglePlacesAPIAndSetCallback();
@@ -23,7 +24,7 @@ namespace GooglePlacesPrintScraper
             if (!File.Exists("results.csv")) { File.CreateText("results.csv");  }
             var keywords = "(" + string.Join(") OR (", ConfigurationManager.AppSettings.Get("keywords").Split(new[] { ',' })) + ")";
             var googlePlacesApiKey = ConfigurationManager.AppSettings.Get("googlePlacesApiKey");
-            var locationsToBeSearched = File.ReadAllLines("../../../data/us_postal_codes.csv").Select(o =>
+            var locationsToBeSearched = File.ReadAllLines(Filename).Where(o => !o.Contains("Processed")).Select(o =>
             {
                 var latitudeAndLongitude = o.Split(new[] { ',' }).Skip(5).ToList();
                 decimal latitude = 0;
@@ -50,6 +51,7 @@ namespace GooglePlacesPrintScraper
                                 {
                                     var placeResponse = client.GetStringAsync(string.Format("https://maps.googleapis.com/maps/api/place/details/json?placeid={0}&key={1}", match["place_id"], googlePlacesApiKey)).Result;
                                     WriteResponse(placeResponse);
+                                    
                                 }
                             }
                         }
@@ -57,6 +59,8 @@ namespace GooglePlacesPrintScraper
                         {
                             return;
                         }
+
+                        lineChanger($"{locationTobeSearched.latitude},{locationTobeSearched.longitude}");
                     }
                 }
                 catch (Exception e)
@@ -64,6 +68,20 @@ namespace GooglePlacesPrintScraper
                     File.AppendAllLines("log.txt", new[] { "\n{DateTime.Now}\n{e.Message},\n{e.StackTrace}\n" });
                 }
             }
+        }
+
+        static void lineChanger(string coordinates)
+        {
+            
+            string[] arrLine = File.ReadAllLines(Filename);
+            for (int i = 0; i < arrLine.Length; i++) {
+                if (arrLine[i].Contains(coordinates))
+                {
+                    arrLine[i] = arrLine[i].Insert(arrLine[i].Length - 1, @",""Processed""");
+                }
+            }
+         
+            File.WriteAllLines(Filename, arrLine);
         }
 
         public static void WriteResponse(string response)
