@@ -20,7 +20,7 @@ namespace GooglePlacesPrintScraper
 
         public static void CallGooglePlacesAPIAndSetCallback()
         {
-            if (!File.Exists("results.csv")) { File.CreateText("results.csv"); }
+            if (!File.Exists("results.csv")) { File.CreateText("results.csv");  }
             var keywords = "(" + string.Join(") OR (", ConfigurationManager.AppSettings.Get("keywords").Split(new[] { ',' })) + ")";
             var googlePlacesApiKey = ConfigurationManager.AppSettings.Get("googlePlacesApiKey");
             var locationsToBeSearched = File.ReadAllLines("../../../data/us_postal_codes.csv").Select(o =>
