@@ -41,7 +41,9 @@ namespace GooglePlacesPrintScraper
                         var response = client.GetStringAsync(string.Format("https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={0},{1}&radius=5000&keyword={2}&key={3}", locationTobeSearched.latitude, locationTobeSearched.longitude, keywords, googlePlacesApiKey)).Result;
                         JavaScriptSerializer json = new JavaScriptSerializer();
                         var res = json.Deserialize<dynamic>(response);
+
                         if (res["status"] == "OK")
+                        {
                             foreach (var match in res["results"])
                             {
                                 if (!File.ReadAllText("results.csv").Contains(match["place_id"]))
@@ -50,6 +52,11 @@ namespace GooglePlacesPrintScraper
                                     WriteResponse(placeResponse);
                                 }
                             }
+                        }
+                        else if (res["status"] == "OVER_QUERY_LIMIT")
+                        {
+                            return;
+                        }
                     }
                 }
                 catch (Exception e)
