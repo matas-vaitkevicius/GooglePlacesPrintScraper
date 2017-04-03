@@ -18,15 +18,20 @@ namespace GooglePlacesPrintScraper
 
             foreach (var locationTobeSearched in locationsToBeSearched)
             {
-                CallGooglePlacesAPIAndSetCallback(locationTobeSearched, keywords);
+                try
+                {
+                    CallGooglePlacesAPIAndSetCallback(locationTobeSearched, keywords);
+                }
+                catch (Exception e)
+                {
+                    File.AppendAllLines("log.txt", new[] { "\n{DateTime.Now}\n{e.Message},\n{e.StackTrace}\n" });
+                }
             }
-
 
         }
 
         public static void CallGooglePlacesAPIAndSetCallback(string location, string[] keywords)
         {
-
         }
     }
 
