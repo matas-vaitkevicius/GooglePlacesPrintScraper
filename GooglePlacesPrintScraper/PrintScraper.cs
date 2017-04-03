@@ -18,10 +18,9 @@ namespace GooglePlacesPrintScraper
 
         }
 
-
-
         public static void CallGooglePlacesAPIAndSetCallback()
         {
+            if (!File.Exists("results.csv")) { File.CreateText("results.csv"); }
             var keywords = "(" + string.Join(") OR (", ConfigurationManager.AppSettings.Get("keywords").Split(new[] { ',' })) + ")";
             var googlePlacesApiKey = ConfigurationManager.AppSettings.Get("googlePlacesApiKey");
             var locationsToBeSearched = File.ReadAllLines("../../../data/us_postal_codes.csv").Select(o =>
@@ -45,8 +44,11 @@ namespace GooglePlacesPrintScraper
                         if (res["status"] == "OK")
                             foreach (var match in res["results"])
                             {
-                                var placeResponse = client.GetStringAsync(string.Format("https://maps.googleapis.com/maps/api/place/details/json?placeid={0}&key={1}", match["place_id"], googlePlacesApiKey)).Result;
-                                WriteResponse(placeResponse);
+                                if (!File.ReadAllText("results.csv").Contains(match["place_id"]))
+                                {
+                                    var placeResponse = client.GetStringAsync(string.Format("https://maps.googleapis.com/maps/api/place/details/json?placeid={0}&key={1}", match["place_id"], googlePlacesApiKey)).Result;
+                                    WriteResponse(placeResponse);
+                                }
                             }
                     }
                 }
@@ -62,10 +64,34 @@ namespace GooglePlacesPrintScraper
             JavaScriptSerializer json = new JavaScriptSerializer();
             var res = json.Deserialize<dynamic>(response);
             if (res["status"] == "OK")
-                foreach (var match in res["results"])
+            {
+                var name = res["result"]["name"];
+                var types = string.Join(",", res["result"]["types"]);
+                string city = string.Empty;
+                string state = string.Empty;
+                foreach (var addressComponent in res["result"]["address_components"])
                 {
-                    File.AppendAllLines("results.csv", match.name);
+                    foreach (var t in addressComponent["types"])
+                    {
+                        if (t == "locality")
+                        {
+                            city = addressComponent["long_name"];
+                        }
+                        if (t == "administrative_area_level_1")
+                        {
+                            state = addressComponent["long_name"];
+                        }
+                    }
                 }
+
+                var address = res["result"]["vicinity"];
+                var phone = res["result"]["international_phone_number"];
+                var website = res["result"]["website"];
+                var placeid = res["result"]["place_id"];
+
+                File.AppendAllLines("results.csv", new[] { $@"""{name}"", ""{types}"",""{city}"",""{state}"",""{address}"",""{phone}"",""{website}"",""{placeid}""" });
+
+            }
         }
     }
 }
