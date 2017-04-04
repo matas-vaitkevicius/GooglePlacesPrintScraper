@@ -14,7 +14,6 @@ namespace GooglePlacesPrintScraper
 {
     public class PrintScraper
     {
-        public static string Filename = "../../../data/us_postal_codes.csv";
         static void Main(string[] args)
         {
             CallGooglePlacesAPIAndSetCallback();
@@ -26,7 +25,9 @@ namespace GooglePlacesPrintScraper
             if (!File.Exists("results.csv")) { File.CreateText("results.csv"); }
             var keywords = "(" + string.Join(") OR (", ConfigurationManager.AppSettings.Get("keywords").Split(new[] { ',' })) + ")";
             var googlePlacesApiKey = ConfigurationManager.AppSettings.Get("googlePlacesApiKey");
-            var locationsToBeSearched = File.ReadAllLines(Filename).Where(o => !o.Contains("Processed")).Select(o =>
+            var radius = ConfigurationManager.AppSettings.Get("radius");
+            string filename = ConfigurationManager.AppSettings.Get("coordinateSource");
+            var locationsToBeSearched = File.ReadAllLines(filename).Where(o => !o.Contains("Processed")).Select(o =>
             {
                 var latitudeAndLongitude = o.Split(new[] { ',' }).Skip(5).ToList();
                 decimal latitude = 0;
@@ -39,31 +40,40 @@ namespace GooglePlacesPrintScraper
             {
                 try
                 {
+                    dynamic res = null;
                     using (var client = new HttpClient())
                     {
-                        var response = client.GetStringAsync(string.Format("https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={0},{1}&radius=5000&keyword={2}&key={3}", locationTobeSearched.latitude, locationTobeSearched.longitude, keywords, googlePlacesApiKey)).Result;
-                        JavaScriptSerializer json = new JavaScriptSerializer();
-                        var res = json.Deserialize<dynamic>(response);
-
-
-                        if (res["status"] == "OK")
+                        while (res == null || HasProperty(res, "next_page_token"))
                         {
-                            foreach (var match in res["results"])
-                            {
-                                if (!File.ReadAllText("results.csv").Contains(match["place_id"]))
-                                {
-                                    var placeResponse = client.GetStringAsync(string.Format("https://maps.googleapis.com/maps/api/place/details/json?placeid={0}&key={1}", match["place_id"], googlePlacesApiKey)).Result;
-                                    WriteResponse(placeResponse);
+                            var url =  string.Format("https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={0},{1}&radius={4}&keyword={2}&key={3}", locationTobeSearched.latitude, locationTobeSearched.longitude, keywords, googlePlacesApiKey, radius);
+                            if (res != null && HasProperty(res, "next_page_token"))
+                             url += "&pagetoken=" + res["next_page_token"];
+                            var response = client.GetStringAsync(url).Result;
+                            JavaScriptSerializer json = new JavaScriptSerializer();
+                            res = json.Deserialize<dynamic>(response);
 
+
+                            if (res["status"] == "OK")
+                            {
+                                foreach (var match in res["results"])
+                                {
+                                    if (!File.ReadAllText("results.csv").Contains(match["place_id"]))
+                                    {
+                                        var placeResponse = client.GetStringAsync(string.Format("https://maps.googleapis.com/maps/api/place/details/json?placeid={0}&key={1}", match["place_id"], googlePlacesApiKey)).Result;
+                                        WriteResponse(placeResponse);
+
+                                    }
                                 }
                             }
-                        }
-                        else if (res["status"] == "OVER_QUERY_LIMIT")
-                        {
-                            return;
+                            else if (res["status"] == "OVER_QUERY_LIMIT")
+                            {
+                                return;
+                            }
+
+                           
                         }
 
-                        lineChanger($"{locationTobeSearched.latitude},{locationTobeSearched.longitude}");
+                        lineChanger($"{locationTobeSearched.latitude},{locationTobeSearched.longitude}", filename);
                     }
                 }
                 catch (Exception e)
@@ -73,10 +83,10 @@ namespace GooglePlacesPrintScraper
             }
         }
 
-        static void lineChanger(string coordinates)
+        static void lineChanger(string coordinates, string filename)
         {
 
-            string[] arrLine = File.ReadAllLines(Filename);
+            string[] arrLine = File.ReadAllLines(filename);
             for (int i = 0; i < arrLine.Length; i++)
             {
                 if (arrLine[i].Contains(coordinates))
@@ -85,7 +95,7 @@ namespace GooglePlacesPrintScraper
                 }
             }
 
-            File.WriteAllLines(Filename, arrLine);
+            File.WriteAllLines(filename, arrLine);
         }
 
         public static void WriteResponse(string response)
