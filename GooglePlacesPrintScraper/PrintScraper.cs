@@ -7,6 +7,8 @@ using System.Configuration;
 using System.IO;
 using System.Net.Http;
 using System.Web.Script.Serialization;
+using System.Dynamic;
+using Microsoft.CSharp.RuntimeBinder;
 
 namespace GooglePlacesPrintScraper
 {
@@ -21,7 +23,7 @@ namespace GooglePlacesPrintScraper
 
         public static void CallGooglePlacesAPIAndSetCallback()
         {
-            if (!File.Exists("results.csv")) { File.CreateText("results.csv");  }
+            if (!File.Exists("results.csv")) { File.CreateText("results.csv"); }
             var keywords = "(" + string.Join(") OR (", ConfigurationManager.AppSettings.Get("keywords").Split(new[] { ',' })) + ")";
             var googlePlacesApiKey = ConfigurationManager.AppSettings.Get("googlePlacesApiKey");
             var locationsToBeSearched = File.ReadAllLines(Filename).Where(o => !o.Contains("Processed")).Select(o =>
@@ -43,6 +45,7 @@ namespace GooglePlacesPrintScraper
                         JavaScriptSerializer json = new JavaScriptSerializer();
                         var res = json.Deserialize<dynamic>(response);
 
+
                         if (res["status"] == "OK")
                         {
                             foreach (var match in res["results"])
@@ -51,7 +54,7 @@ namespace GooglePlacesPrintScraper
                                 {
                                     var placeResponse = client.GetStringAsync(string.Format("https://maps.googleapis.com/maps/api/place/details/json?placeid={0}&key={1}", match["place_id"], googlePlacesApiKey)).Result;
                                     WriteResponse(placeResponse);
-                                    
+
                                 }
                             }
                         }
@@ -72,15 +75,16 @@ namespace GooglePlacesPrintScraper
 
         static void lineChanger(string coordinates)
         {
-            
+
             string[] arrLine = File.ReadAllLines(Filename);
-            for (int i = 0; i < arrLine.Length; i++) {
+            for (int i = 0; i < arrLine.Length; i++)
+            {
                 if (arrLine[i].Contains(coordinates))
                 {
                     arrLine[i] = arrLine[i].Insert(arrLine[i].Length - 1, @",""Processed""");
                 }
             }
-         
+
             File.WriteAllLines(Filename, arrLine);
         }
 
@@ -109,13 +113,26 @@ namespace GooglePlacesPrintScraper
                     }
                 }
 
-                var address = res["result"]["vicinity"];
-                var phone = res["result"]["international_phone_number"];
-                var website = res["result"]["website"];
+                var address = HasProperty(res["result"], "vicinity") ? res["result"]["vicinity"] : string.Empty;
+                var phone = HasProperty(res["result"], "international_phone_number") ? res["result"]["international_phone_number"] : string.Empty;
+                var website = HasProperty(res["result"], "website") ? res["result"]["website"] : string.Empty;
                 var placeid = res["result"]["place_id"];
 
                 File.AppendAllLines("results.csv", new[] { $@"""{name}"", ""{types}"",""{city}"",""{state}"",""{address}"",""{phone}"",""{website}"",""{placeid}""" });
 
+            }
+        }
+
+        public static bool HasProperty(dynamic obj, string name)
+        {
+            try
+            {
+                var value = obj[name];
+                return true;
+            }
+            catch (KeyNotFoundException)
+            {
+                return false;
             }
         }
     }
